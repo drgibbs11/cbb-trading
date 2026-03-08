@@ -1,6 +1,13 @@
 [build]
-builder = "nixpacks"
+
+[phases.setup]
+nixPkgs = ["python311"]
+
+[phases.install]
+cmds = ["pip install -r cbb/requirements.txt"]
+
+[phases.build]
+cmds = []
 
 [deploy]
-startCommand = "python main.py"
-rootDirectory = "cbb"
+startCommand = "cd /app/cbb && python main.py"
