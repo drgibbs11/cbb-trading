@@ -67,9 +67,9 @@ def is_stop_loss_active() -> bool:
     result = supabase.table("cbb_daily_pnl") \
         .select("stop_loss_hit") \
         .eq("date", today) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
-    return bool(result.data and result.data.get("stop_loss_hit"))
+    return bool(result.data and result.data[0].get("stop_loss_hit"))
 
 
 def check_and_set_stop_loss(bankroll_dollars: float) -> bool:
@@ -77,13 +77,13 @@ def check_and_set_stop_loss(bankroll_dollars: float) -> bool:
     result = supabase.table("cbb_daily_pnl") \
         .select("net_pnl_cents") \
         .eq("date", today) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
 
     if not result.data:
         return False
 
-    net_pnl_dollars = result.data["net_pnl_cents"] / 100
+    net_pnl_dollars = result.data[0]["net_pnl_cents"] / 100
     threshold = -(bankroll_dollars * config.DAILY_STOP_LOSS_PCT)
 
     if net_pnl_dollars <= threshold:
@@ -107,10 +107,10 @@ def get_bankroll_dollars() -> float:
     result = supabase.table("cbb_bankroll") \
         .select("balance_cents") \
         .eq("is_paper", config.PAPER_TRADING) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
     if result.data:
-        return result.data["balance_cents"] / 100
+        return result.data[0]["balance_cents"] / 100
     return config.BANKROLL_DOLLARS
 
 
@@ -118,13 +118,13 @@ def update_bankroll(delta_cents: int):
     current = supabase.table("cbb_bankroll") \
         .select("id, balance_cents") \
         .eq("is_paper", config.PAPER_TRADING) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
     if current.data:
         new_balance = current.data["balance_cents"] + delta_cents
         supabase.table("cbb_bankroll") \
             .update({"balance_cents": new_balance}) \
-            .eq("id", current.data["id"]) \
+            .eq("id", current.data[0]["id"]) \
             .execute()
 
 
@@ -264,17 +264,19 @@ def write_health(loop_count: int, live_games: int, open_positions: int, error: s
 
 def log_unmapped(raw_name: str, event_ticker: str):
     """Upsert an unmapped team occurrence."""
+def log_unmapped(raw_name: str, event_ticker: str):
+    """Upsert an unmapped team occurrence."""
     existing = supabase.table("cbb_unmapped_teams") \
         .select("id, occurrence_count") \
         .eq("kalshi_raw_name", raw_name) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
 
     if existing.data:
         supabase.table("cbb_unmapped_teams").update({
             "last_seen": datetime.now(timezone.utc).isoformat(),
-            "occurrence_count": existing.data["occurrence_count"] + 1,
-        }).eq("id", existing.data["id"]).execute()
+            "occurrence_count": existing.data[0]["occurrence_count"] + 1,
+        }).eq("id", existing.data[0]["id"]).execute()
     else:
         supabase.table("cbb_unmapped_teams").insert({
             "kalshi_raw_name": raw_name,
