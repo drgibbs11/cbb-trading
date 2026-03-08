@@ -136,20 +136,29 @@ def get_live_cbb_events() -> list[dict]:
 def _is_cbb_event(event: dict) -> bool:
     series = event.get("series_ticker", "").upper()
     title  = event.get("title", "").upper()
-    return any(kw in series or kw in title for kw in KALSHI_CBB_KEYWORDS)
+    is_match = any(kw in series or kw in title for kw in KALSHI_CBB_KEYWORDS)
+    # Debug: log events that might be CBB but aren't matching
+    if "basketball" in title.lower() or "ncaa" in title.lower() or "college" in title.lower():
+        log(f"KALSHI_CBB_CHECK: series={series}, title={title[:60]}, matched={is_match}")
+    return is_match
 
 
 def _parse_event(event: dict) -> dict:
-    markets = [
-        {
+    raw_markets = event.get("markets", [])
+    markets = []
+    for m in raw_markets:
+        market_data = {
             "ticker":   m.get("ticker", ""),
             "title":    m.get("title", ""),
             "yes_bid":  m.get("yes_bid", 0) or 0,
             "yes_ask":  m.get("yes_ask", 0) or 0,
             "status":   m.get("status", ""),
         }
-        for m in event.get("markets", [])
-    ]
+        markets.append(market_data)
+        # Log first few markets to debug
+        if len(markets) <= 2:
+            log(f"KALSHI_RAW_MARKET: {m}")
+    
     return {
         "event_ticker":  event.get("event_ticker", ""),
         "series_ticker": event.get("series_ticker", ""),

@@ -497,21 +497,26 @@ def main_loop():
             for ke in kalshi_events:
                 parsed = parse_kalshi_title(ke["title"])
                 if not parsed:
-                    log("KALSHI_PARSE_FAILED", {"title": ke.get("title", "")})
+                    log("KALSHI_PARSE_FAILED", {"title": ke.get("title", ""), "event_ticker": ke.get("event_ticker", "")})
                     continue
                 team_a_raw, team_b_raw = parsed
+                log(f"KALSHI_TEAMS_EXTRACTED: event={ke.get('event_ticker')}, team_a='{team_a_raw}', team_b='{team_b_raw}'")
+                
                 team_a_info = lookup_team(supabase, team_a_raw)
                 team_b_info = lookup_team(supabase, team_b_raw)
 
                 if not team_a_info:
+                    log(f"KALSHI_TEAM_NOT_FOUND: '{team_a_raw}' for event {ke.get('event_ticker')}")
                     log_unmapped(team_a_raw, ke["event_ticker"])
                 if not team_b_info:
+                    log(f"KALSHI_TEAM_NOT_FOUND: '{team_b_raw}' for event {ke.get('event_ticker')}")
                     log_unmapped(team_b_raw, ke["event_ticker"])
 
                 if team_a_info and team_b_info:
                     kalshi_index[(team_a_info["espn_id"], team_b_info["espn_id"])] = ke
                     kalshi_index[(team_b_info["espn_id"], team_a_info["espn_id"])] = ke
                     matched_count += 1
+                    log(f"KALSHI_MATCH_SUCCESS: {team_a_raw}({team_a_info['espn_id']}) vs {team_b_raw}({team_b_info['espn_id']}) = {ke.get('event_ticker')}")
             
             log("KALSHI_MATCHED_GAMES", {
                 "kalshi_events_total": len(kalshi_events),
@@ -586,10 +591,15 @@ def _process_game(
     away = game["away_team"]
 
     # Find matching Kalshi event
-    kalshi_event = (
-        kalshi_index.get((home["id"], away["id"])) or
-        kalshi_index.get((away["id"], home["id"]))
-    )
+    lookup_key_1 = (home["id"], away["id"])
+    lookup_key_2 = (away["id"], home["id"])
+    kalshi_event = kalshi_index.get(lookup_key_1) or kalshi_index.get(lookup_key_2)
+    
+    if not kalshi_event:
+        log(f"KALSHI_LOOKUP_FAILED: ESPN game {espn_id} ({home['display_name']} vs {away['display_name']}), keys={lookup_key_1}, {lookup_key_2}")
+        log(f"KALSHI_INDEX_KEYS: {list(kalshi_index.keys())[:10]}...")  # First 10 keys
+    else:
+        log(f"KALSHI_LOOKUP_SUCCESS: {espn_id} matched to {kalshi_event.get('event_ticker')}")
 
     # Fetch ESPN win probability for this game
     wp = get_win_probability(espn_id)
@@ -608,6 +618,11 @@ def _process_game(
         if kalshi_event else None
     away_market = kalshi_client.find_win_market(kalshi_event, away["short_name"]) \
         if kalshi_event else None
+
+    # Debug: log what markets were found
+    if kalshi_event:
+        log(f"KALSHI_MARKETS_FOUND: event={kalshi_event.get('event_ticker')}, home_market={home_market}, away_market={away_market}")
+        log(f"ALL_MARKETS_IN_EVENT: {kalshi_event.get('markets', [])}")
 
     home_bid = home_market["yes_bid"] if home_market else 0
     home_ask = home_market["yes_ask"] if home_market else 0
