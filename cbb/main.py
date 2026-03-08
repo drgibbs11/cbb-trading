@@ -40,13 +40,15 @@ def bootstrap():
     seed_team_mapping()
 
     # Ensure bankroll row exists for current mode
-    existing = supabase.table("cbb_bankroll") \
+    result = supabase.table("cbb_bankroll") \
         .select("id") \
         .eq("is_paper", config.PAPER_TRADING) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
 
-    if not existing.data:
+    existing = result.data[0] if result.data else None
+
+    if not existing:
         bankroll_cents = int(config.BANKROLL_DOLLARS * 100)
         supabase.table("cbb_bankroll").insert({
             "balance_cents": bankroll_cents,
