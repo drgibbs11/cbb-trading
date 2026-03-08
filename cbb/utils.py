@@ -1,17 +1,21 @@
 import time
-import json
-from datetime import datetime, timezone
+import logging
+
+# Set up standard logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger(__name__)
 
 
 def log(event: str, data: dict = None):
-    """Emit structured JSON log to stdout."""
-    payload = {
-        "ts": datetime.now(timezone.utc).isoformat(),
-        "event": event,
-    }
+    """Emit simple log message."""
     if data:
-        payload.update(data)
-    print(json.dumps(payload), flush=True)
+        logger.info(f"{event}: {data}")
+    else:
+        logger.info(event)
 
 
 def retry(fn, delays: list[int], label: str = ""):
@@ -26,9 +30,9 @@ def retry(fn, delays: list[int], label: str = ""):
             return fn()
         except Exception as e:
             last_err = e
-            log(f"RETRY_{label}", {"attempt": attempt + 1, "delay": delay, "error": str(e)})
+            logger.warning(f"RETRY_{label}: attempt {attempt + 1}, delay {delay}s, error: {e}")
             time.sleep(delay)
-    log(f"RETRY_EXHAUSTED_{label}", {"error": str(last_err)})
+    logger.error(f"RETRY_EXHAUSTED_{label}: {last_err}")
     return None
 
 
