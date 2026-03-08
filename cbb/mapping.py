@@ -34,11 +34,11 @@ def lookup_team(supabase_client, raw_kalshi_name: str) -> dict | None:
     result = supabase_client.table("cbb_team_mapping") \
         .select("espn_id, espn_name, espn_abbr, conference") \
         .eq("kalshi_name", key) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
 
     if result.data:
-        return result.data
+        return result.data[0]
     return None
 
 
