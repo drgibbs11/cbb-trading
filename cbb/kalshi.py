@@ -96,28 +96,11 @@ def get_live_cbb_events() -> list[dict]:
     """
     Paginate through all open Kalshi events and return those
     matching college basketball patterns.
-
-    Uses public endpoint — no auth required.
-
-    Each returned dict:
-    {
-        "event_ticker": str,
-        "series_ticker": str,
-        "title": str,
-        "sub_title": str,
-        "markets": [
-            {
-                "ticker": str,
-                "title": str,
-                "yes_bid": int,    # cents
-                "yes_ask": int,    # cents
-                "status": str,
-            }
-        ]
-    }
     """
     events = []
     cursor = None
+    total_checked = 0
+    cbb_found = 0
 
     while True:
         params = {
@@ -130,16 +113,23 @@ def get_live_cbb_events() -> list[dict]:
 
         data = _get_public("/events", params=params)
         if not data:
+            log("KALSHI_API_EMPTY_RESPONSE")
             break
 
-        for event in data.get("events", []):
+        page_events = data.get("events", [])
+        log(f"KALSHI_API_PAGE: {len(page_events)} events returned")
+        
+        for event in page_events:
+            total_checked += 1
             if _is_cbb_event(event):
                 events.append(_parse_event(event))
+                cbb_found += 1
 
         cursor = data.get("cursor")
         if not cursor:
             break
 
+    log(f"KALSHI_FILTERED: {cbb_found}/{total_checked} events matched CBB keywords")
     return events
 
 
