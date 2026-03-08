@@ -22,7 +22,7 @@ from positions import check_exit, calculate_pnl
 # ── Supabase client ───────────────────────────────────────────────────
 supabase: Client = create_client(
     os.environ["SUPABASE_URL"],
-    os.environ["SUPABASE_SERVICE_ROLE_KEY"],
+    os.environ["SUPABASE_SERVICE_KEY"],
 )
 
 
