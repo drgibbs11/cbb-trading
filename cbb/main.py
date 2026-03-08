@@ -224,14 +224,14 @@ def log_signal(game_id: str, game: dict, team_id: str, team_name: str,
 
 def update_daily_pnl(net_pnl_cents: int, won: bool):
     today = date.today().isoformat()
-    existing = supabase.table("cbb_daily_pnl") \
+    result = supabase.table("cbb_daily_pnl") \
         .select("*") \
         .eq("date", today) \
-        .maybe_single() \
+        .limit(1) \
         .execute()
 
-    if existing.data:
-        row = existing.data
+    if result.data:
+        row = result.data[0]
         supabase.table("cbb_daily_pnl").update({
             "trades_exited": row["trades_exited"] + 1,
             "wins": row["wins"] + (1 if won else 0),
