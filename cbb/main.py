@@ -185,23 +185,40 @@ def write_game_state(game_id: str, game: dict, wp: dict,
     home_edge = calculate_edge(wp["home_win_pct"], home_ask) if home_ask else 0
     away_edge = calculate_edge(wp["away_win_pct"], away_ask) if away_ask else 0
 
-    supabase.table("cbb_game_states").insert({
-        "game_id": game_id,
-        "espn_game_id": game["espn_game_id"],
-        "score_home": game["home_team"]["score"],
-        "score_away": game["away_team"]["score"],
-        "score_differential": score_diff,
-        "minutes_remaining": game["minutes_remaining"],
-        "half": game["half"],
-        "espn_home_win_prob": wp["home_win_pct"],
-        "espn_away_win_prob": wp["away_win_pct"],
-        "kalshi_home_yes_bid": home_bid,
-        "kalshi_home_yes_ask": home_ask,
-        "kalshi_away_yes_bid": away_bid,
-        "kalshi_away_yes_ask": away_ask,
-        "home_edge": home_edge,
-        "away_edge": away_edge,
-    }).execute()
+    try:
+        result = supabase.table("cbb_game_states").insert({
+            "game_id": game_id,
+            "espn_game_id": game["espn_game_id"],
+            "score_home": game["home_team"]["score"],
+            "score_away": game["away_team"]["score"],
+            "score_differential": score_diff,
+            "minutes_remaining": game["minutes_remaining"],
+            "half": game["half"],
+            "espn_home_win_prob": wp["home_win_pct"],
+            "espn_away_win_prob": wp["away_win_pct"],
+            "kalshi_home_yes_bid": home_bid,
+            "kalshi_home_yes_ask": home_ask,
+            "kalshi_away_yes_bid": away_bid,
+            "kalshi_away_yes_ask": away_ask,
+            "home_edge": home_edge,
+            "away_edge": away_edge,
+        }).execute()
+        if result.data:
+            log("GAME_STATE_WRITTEN", {
+                "game_id": game_id,
+                "espn_id": game["espn_game_id"],
+                "home_ask": home_ask,
+                "away_ask": away_ask,
+                "home_edge": home_edge,
+                "away_edge": away_edge
+            })
+    except Exception as e:
+        log("GAME_STATE_WRITE_FAILED", {
+            "game_id": game_id,
+            "error": str(e),
+            "home_ask": home_ask,
+            "away_ask": away_ask
+        })
 
 
 def log_signal(game_id: str, game: dict, team_id: str, team_name: str,
@@ -476,9 +493,11 @@ def main_loop():
 
             # Build index: espn_team_id → kalshi_event + market info
             kalshi_index = {}  # espn_game_id → kalshi event + markets
+            matched_count = 0
             for ke in kalshi_events:
                 parsed = parse_kalshi_title(ke["title"])
                 if not parsed:
+                    log("KALSHI_PARSE_FAILED", {"title": ke.get("title", "")})
                     continue
                 team_a_raw, team_b_raw = parsed
                 team_a_info = lookup_team(supabase, team_a_raw)
@@ -492,6 +511,13 @@ def main_loop():
                 if team_a_info and team_b_info:
                     kalshi_index[(team_a_info["espn_id"], team_b_info["espn_id"])] = ke
                     kalshi_index[(team_b_info["espn_id"], team_a_info["espn_id"])] = ke
+                    matched_count += 1
+            
+            log("KALSHI_MATCHED_GAMES", {
+                "kalshi_events_total": len(kalshi_events),
+                "matched_to_espn": matched_count,
+                "unmapped_logged": len(kalshi_events) - matched_count
+            })
 
             # ── 5. Get open positions ─────────────────────────────────
             open_positions = get_open_positions()
